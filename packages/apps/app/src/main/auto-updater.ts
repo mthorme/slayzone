@@ -14,6 +14,20 @@ import { menuEvents } from './menu-events'
 
 let isRestarting = false
 
+/**
+ * FORK CHANGE (mthorme/slayzone): upstream auto-updates are OFF by default.
+ *
+ * This is a local fork built from source and installed over the same appId
+ * (`com.slayzone.app`), so electron-updater's GitHub feed still resolves to
+ * UPSTREAM releases. Left enabled, a background check would download an
+ * upstream build and `autoInstallOnAppQuit` would silently replace this fork
+ * on the next quit — discarding every local change with no prompt.
+ *
+ * Set `SLAYZONE_FORK_ALLOW_UPSTREAM_UPDATES=1` to opt back in (e.g. to
+ * deliberately return to the official build).
+ */
+const upstreamUpdatesAllowed = process.env.SLAYZONE_FORK_ALLOW_UPSTREAM_UPDATES === '1'
+
 let autoUpdater: typeof electronUpdater.autoUpdater | null = null
 let downloadedVersion: string | null = null
 // On macOS, MacUpdater proxies the download to native Squirrel for staging.
@@ -24,7 +38,9 @@ let nativeSquirrelReady = false
 function getAutoUpdater() {
   if (!autoUpdater) {
     autoUpdater = electronUpdater.autoUpdater
-    autoUpdater.autoInstallOnAppQuit = true
+    // Defense in depth: even on the opt-in path, never swap the binary during a
+    // quit the user didn't initiate as an update (see upstreamUpdatesAllowed).
+    autoUpdater.autoInstallOnAppQuit = upstreamUpdatesAllowed
     // Propagate errors to renderer so the user sees them, not just the console
     autoUpdater.on('error', (err) => {
       console.error('[updater] error:', err.message)
@@ -63,6 +79,10 @@ const CHECK_INTERVAL_MS = 60 * 60 * 1000 // 1 hour
 
 export function initAutoUpdater(): void {
   if (is.dev) return
+  if (!upstreamUpdatesAllowed) {
+    console.log('[updater] disabled: local fork build (see upstreamUpdatesAllowed)')
+    return
+  }
   try {
     getAutoUpdater().checkForUpdatesAndNotify()
   } catch (err) {
@@ -140,7 +160,7 @@ function sendUpdateStatus(status: import('@slayzone/types').UpdateStatus): void 
 export async function checkForUpdates(): Promise<void> {
   sendUpdateStatus({ type: 'checking' })
 
-  if (is.dev) {
+  if (is.dev || !upstreamUpdatesAllowed) {
     sendUpdateStatus({ type: 'not-available' })
     return
   }
