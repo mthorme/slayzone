@@ -1594,6 +1594,40 @@ function App(): React.JSX.Element {
                         'flex-1 min-w-0 min-h-0 rounded-lg overflow-hidden relative',
                         explodeMode ? 'p-1' : ''
                       )}
+                      // CAPTURE phase, on the grid rather than per cell. `Terminal.tsx`
+                      // attaches a `dragover` listener that calls stopPropagation()
+                      // unconditionally (it owns file-drop-to-paste-path), so a bubbling
+                      // handler on the cell never fires once the pointer is over terminal
+                      // content — which is most of a cell, and ALL of a full-height one.
+                      // Capture runs before that listener, so a swap lands wherever the
+                      // user drops. Gated on our own mime so file/text drags still fall
+                      // through to the terminal untouched.
+                      onDragOverCapture={
+                        explodeMode
+                          ? (e) => {
+                              if (!e.dataTransfer.types.includes(EXPLODE_DRAG_TYPE)) return
+                              e.preventDefault()
+                              e.dataTransfer.dropEffect = 'move'
+                            }
+                          : undefined
+                      }
+                      onDropCapture={
+                        explodeMode
+                          ? (e) => {
+                              if (!e.dataTransfer.types.includes(EXPLODE_DRAG_TYPE)) return
+                              const from = e.dataTransfer.getData(EXPLODE_DRAG_TYPE)
+                              // In capture phase `e.target` is still the deepest node (the
+                              // terminal), so walk up to whichever cell owns it.
+                              const cell = (e.target as HTMLElement | null)?.closest?.(
+                                '[data-explode-task-id]'
+                              )
+                              const to = cell?.getAttribute('data-explode-task-id')
+                              e.preventDefault()
+                              e.stopPropagation()
+                              if (from && to && from !== to) swapExplodeTasks(from, to)
+                            }
+                          : undefined
+                      }
                     >
                       {tabs.map((tab, i) => {
                         const isVisible = toVisibleIndex(i) >= 0
@@ -1648,29 +1682,6 @@ function App(): React.JSX.Element {
                             inert={
                               (!explodeMode && !isViewActive) || isExplodeMinimized
                                 ? true
-                                : undefined
-                            }
-                            onDragOver={
-                              explodeRect
-                                ? (e) => {
-                                    // Only claim drops that carry one of our cells; without
-                                    // this the whole grid becomes a drop target for files and
-                                    // dragged text, which the terminal should keep handling.
-                                    if (e.dataTransfer.types.includes(EXPLODE_DRAG_TYPE)) {
-                                      e.preventDefault()
-                                      e.dataTransfer.dropEffect = 'move'
-                                    }
-                                  }
-                                : undefined
-                            }
-                            onDrop={
-                              explodeRect && tab.type === 'task'
-                                ? (e) => {
-                                    const from = e.dataTransfer.getData(EXPLODE_DRAG_TYPE)
-                                    if (!from || from === tab.taskId) return
-                                    e.preventDefault()
-                                    swapExplodeTasks(from, tab.taskId)
-                                  }
                                 : undefined
                             }
                           >
