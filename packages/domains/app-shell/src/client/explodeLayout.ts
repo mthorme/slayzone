@@ -9,10 +9,13 @@
  *     mode already positions them `absolute inset-0`). Wrapping them in per-column
  *     elements for explode mode would change the React tree between modes and
  *     REMOUNT every terminal — xterm would lose its scrollback on each toggle.
- *  2. A minimized cell needs a fixed pixel height while its siblings absorb the
- *     remainder. Mixing `auto` and `1fr` tracks across a shared grid cannot express
- *     that per-column.
- *  3. Drag-to-swap animates cleanly when every cell already has an explicit rect.
+ *  2. Drag-to-swap animates cleanly when every cell already has an explicit rect.
+ *
+ * MINIMIZE is deliberately NOT modelled here. A minimized terminal is parked in the
+ * header tray and leaves the grid entirely, so the caller simply omits its id from
+ * `taskIds` and the remaining cells repack to fill the space. Collapsing it to an
+ * in-grid strip instead would keep spending a row on a terminal the user just said
+ * they were done looking at.
  *
  * PACKING: column-major, no dead cells. Items are split across columns as evenly
  * as possible with earlier columns taking the remainder, so an odd item out lands
@@ -41,16 +44,13 @@ export interface ExplodeLayout {
 }
 
 export interface ExplodeLayoutInput {
-  /** Task ids in display order — already reordered by any user drag. */
+  /** Task ids in display order — already reordered by any user drag, and with
+   *  minimized ids already removed (they live in the header tray, not the grid). */
   taskIds: readonly string[]
   width: number
   height: number
   /** Gutter between cells, both axes. */
   gap: number
-  /** Ids collapsed to a title strip. */
-  minimized: ReadonlySet<string>
-  /** Height a minimized cell occupies (its header strip). */
-  minimizedHeight: number
   /** Narrowest a cell may get before dropping a column. */
   minCellWidth: number
 }
@@ -78,7 +78,7 @@ export function explodeColumnSizes(count: number, cols: number): number[] {
 }
 
 export function computeExplodeLayout(input: ExplodeLayoutInput): ExplodeLayout {
-  const { taskIds, width, height, gap, minimized, minimizedHeight, minCellWidth } = input
+  const { taskIds, width, height, gap, minCellWidth } = input
   const count = taskIds.length
   if (count === 0) return { cols: 0, cells: [] }
 
@@ -98,18 +98,12 @@ export function computeExplodeLayout(input: ExplodeLayoutInput): ExplodeLayout {
 
     const left = col * (colWidth + gap)
     const totalGapY = gap * (size - 1)
-
-    // Minimized cells are fixed; the rest split whatever is left. Clamping at 0
-    // keeps rects sane when a column is so full of minimized cells that they
-    // overflow — they simply stack past the bottom rather than going negative.
-    const minimizedCount = ids.filter((id) => minimized.has(id)).length
-    const flexible = size - minimizedCount
-    const freeHeight = height - totalGapY - minimizedCount * minimizedHeight
-    const flexHeight = flexible > 0 ? Math.max(0, freeHeight / flexible) : 0
+    // Clamp at 0 so a container smaller than its own gutters yields degenerate
+    // rects rather than negative ones.
+    const cellHeight = Math.max(0, (height - totalGapY) / size)
 
     let top = 0
     for (const taskId of ids) {
-      const cellHeight = minimized.has(taskId) ? minimizedHeight : flexHeight
       cells.push({ taskId, left, top, width: colWidth, height: cellHeight, col })
       top += cellHeight + gap
     }

@@ -23,8 +23,7 @@ function eq(a: number, b: number, msg: string): void {
   assert(Math.abs(a - b) < 0.001, `${msg} (got ${a}, want ${b})`)
 }
 
-const NONE = new Set<string>()
-const BASE = { gap: 4, minimized: NONE, minimizedHeight: 32, minCellWidth: 480 }
+const BASE = { gap: 4, minCellWidth: 480 }
 const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `t${i + 1}`)
 
 // ── column count ────────────────────────────────────────────────────────────
@@ -77,37 +76,39 @@ const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `t${i +
   eq(cells[2].left + cells[2].width, 1000, 'right edge lands exactly on the container')
 }
 
-// ── minimize: a collapsed cell frees space for its column siblings ──────────
+// ── minimize = leave the grid entirely (parked in the header tray) ──────────
+// The caller drops minimized ids from `taskIds`; the survivors must repack as if
+// the terminal was never there, rather than a strip continuing to hold a row.
 {
-  const minimized = new Set(['t2'])
-  const { cells } = computeExplodeLayout({
+  const { cols, cells } = computeExplodeLayout({
     ...BASE,
-    minimized,
-    taskIds: ids(3),
+    taskIds: ['t1', 't3'], // t2 minimized out of a 3-task set
     width: 1000,
     height: 600
   })
-  const byId = Object.fromEntries(cells.map((c) => [c.taskId, c]))
-  eq(byId.t2.height, 32, 'minimized cell collapses to its header strip')
-  eq(byId.t1.height, 600 - 4 - 32, 'its sibling absorbs the freed space')
-  eq(byId.t1.top + byId.t1.height + 4, byId.t2.top, 'still flush, one gap')
-  eq(byId.t3.height, 600, 'a different column is unaffected')
+  eq(cols, 2, '2 remaining tasks → 2 columns')
+  eq(cells[0].height, 600, 'each survivor takes a full column')
+  eq(cells[1].height, 600, 'no leftover strip holding a row')
+  eq(cells[1].left + cells[1].width, 1000, 'survivors still tile the full width')
 }
 
-// Minimizing every cell in a column must not produce negative geometry.
+// Minimizing down to one leaves a single full-bleed cell.
 {
-  const minimized = new Set(['t1', 't2'])
-  const { cells } = computeExplodeLayout({
+  const { cols, cells } = computeExplodeLayout({
     ...BASE,
-    minimized,
-    taskIds: ids(3),
+    taskIds: ['t2'],
     width: 1000,
     height: 600
   })
-  assert(
-    cells.every((c) => c.height >= 0),
-    'all-minimized column never yields negative heights'
-  )
+  eq(cols, 1, 'one visible task → one column')
+  eq(cells[0].width, 1000, 'full width')
+  eq(cells[0].height, 600, 'full height')
+}
+
+// Minimizing ALL of them is legal and yields an empty grid, not broken geometry.
+{
+  const { cols, cells } = computeExplodeLayout({ ...BASE, taskIds: [], width: 1000, height: 600 })
+  assert(cols === 0 && cells.length === 0, 'everything minimized → empty grid')
 }
 
 // ── single column (narrow window) stacks everything ─────────────────────────

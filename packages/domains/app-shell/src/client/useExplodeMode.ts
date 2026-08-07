@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type Dispatch,
@@ -7,6 +9,7 @@ import {
   type SetStateAction
 } from 'react'
 import { useTabStore } from '@slayzone/settings'
+import { reconcileExplodeOrder, swapExplodeOrder } from './explodeLayout'
 
 type Tabs = ReturnType<typeof useTabStore.getState>['tabs']
 
@@ -16,10 +19,22 @@ export interface ExplodeModeApi {
   focusedExplodeTaskId: string | null
   explodeGridRef: RefObject<HTMLDivElement | null>
   explodeGridWidth: number
+  explodeGridHeight: number
+  /** Open task ids in user-arranged order, minimized ones removed — exactly what
+   *  the grid lays out. */
+  explodeVisibleTaskIds: string[]
+  /** Parked in the header tray; still open tabs, just not given grid space. */
+  explodeMinimizedTaskIds: string[]
+  minimizeExplodeTask: (taskId: string) => void
+  restoreExplodeTask: (taskId: string) => void
+  restoreAllExplodeTasks: () => void
+  /** Exchange two cells' positions (drag-to-swap). */
+  swapExplodeTasks: (a: string, b: string) => void
 }
 
 // Explode mode = multi-task grid. Owns its toggle, the keyboard-focused cell,
-// the grid ref, and the responsive grid width. Effects keep all three in sync
+// the grid ref, the responsive grid size, and the user's arrangement (order +
+// which terminals are parked in the header tray). Effects keep all of it in sync
 // with the open task tabs.
 export function useExplodeMode(
   openTaskIds: string[],
@@ -32,25 +47,88 @@ export function useExplodeMode(
   const [focusedExplodeTaskId, setFocusedExplodeTaskId] = useState<string | null>(null)
   const explodeGridRef = useRef<HTMLDivElement | null>(null)
   const [explodeGridWidth, setExplodeGridWidth] = useState(0)
+  const [explodeGridHeight, setExplodeGridHeight] = useState(0)
+  // User arrangement. `order` may lag the open tabs (a task opened or closed since
+  // the last drag), so every read goes through reconcile rather than trusting it.
+  const [order, setOrder] = useState<string[]>([])
+  const [minimized, setMinimized] = useState<ReadonlySet<string>>(() => new Set())
 
   // Auto-disable explode mode when fewer than 2 task tabs
   useEffect(() => {
     if (openTaskIds.length < 2) setExplodeMode(false)
   }, [openTaskIds.length])
 
-  // Seed / clear focused explode cell on mode toggle; keep valid as tabs change
+  // Drop arrangement state for tasks that are no longer open, so a closed-then-
+  // reopened task comes back visible instead of invisibly stuck in the tray.
+  useEffect(() => {
+    const open = new Set(openTaskIds)
+    setMinimized((prev) => {
+      const next = new Set([...prev].filter((id) => open.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [openTaskIds])
+
+  const orderedTaskIds = useMemo(
+    () => reconcileExplodeOrder(order, openTaskIds),
+    [order, openTaskIds]
+  )
+
+  const explodeVisibleTaskIds = useMemo(
+    () => orderedTaskIds.filter((id) => !minimized.has(id)),
+    [orderedTaskIds, minimized]
+  )
+
+  const explodeMinimizedTaskIds = useMemo(
+    () => orderedTaskIds.filter((id) => minimized.has(id)),
+    [orderedTaskIds, minimized]
+  )
+
+  const minimizeExplodeTask = useCallback((taskId: string) => {
+    setMinimized((prev) => {
+      if (prev.has(taskId)) return prev
+      return new Set(prev).add(taskId)
+    })
+  }, [])
+
+  const restoreExplodeTask = useCallback((taskId: string) => {
+    setMinimized((prev) => {
+      if (!prev.has(taskId)) return prev
+      const next = new Set(prev)
+      next.delete(taskId)
+      return next
+    })
+  }, [])
+
+  const restoreAllExplodeTasks = useCallback(() => {
+    setMinimized((prev) => (prev.size === 0 ? prev : new Set()))
+  }, [])
+
+  // Persist the RECONCILED order, not the stale stored one: a swap against an
+  // order that predates a newly-opened task would otherwise drop that task.
+  const swapExplodeTasks = useCallback(
+    (a: string, b: string) => {
+      setOrder(swapExplodeOrder(reconcileExplodeOrder(order, openTaskIds), a, b))
+    },
+    [order, openTaskIds]
+  )
+
+  // Seed / clear focused explode cell on mode toggle; keep valid as tabs change.
+  // A minimized task must never hold focus — its cell is gone, so shortcuts would
+  // route to a terminal the user cannot see.
   useEffect(() => {
     if (!explodeMode) {
       setFocusedExplodeTaskId(null)
       return
     }
     setFocusedExplodeTaskId((prev) => {
-      if (prev && openTaskIds.includes(prev)) return prev
+      if (prev && explodeVisibleTaskIds.includes(prev)) return prev
       const activeTab = tabs[activeTabIndex]
-      if (activeTab?.type === 'task') return activeTab.taskId
-      return openTaskIds[0] ?? null
+      if (activeTab?.type === 'task' && explodeVisibleTaskIds.includes(activeTab.taskId)) {
+        return activeTab.taskId
+      }
+      return explodeVisibleTaskIds[0] ?? null
     })
-  }, [explodeMode, openTaskIds, activeTabIndex, tabs])
+  }, [explodeMode, explodeVisibleTaskIds, activeTabIndex, tabs])
 
   // Delegated focusin: bubble from xterm / editor / browser → grid cell; resolve task id.
   useEffect(() => {
@@ -67,19 +145,36 @@ export function useExplodeMode(
     return () => grid.removeEventListener('focusin', handleFocusIn)
   }, [explodeMode])
 
-  // Track grid width so explode mode can pack more columns as the window grows.
+  // Track grid size so explode mode can pack more columns as the window grows.
+  // Height matters too now: cells are positioned as explicit rects rather than
+  // `1fr` grid tracks, so the layout cannot fall back on the container stretching.
   useEffect(() => {
     if (!explodeMode) return
     const grid = explodeGridRef.current
     if (!grid) return
     setExplodeGridWidth(grid.clientWidth)
+    setExplodeGridHeight(grid.clientHeight)
     const ro = new ResizeObserver((entries) => {
-      const w = entries[0]?.contentRect.width ?? 0
-      setExplodeGridWidth(w)
+      const rect = entries[0]?.contentRect
+      setExplodeGridWidth(rect?.width ?? 0)
+      setExplodeGridHeight(rect?.height ?? 0)
     })
     ro.observe(grid)
     return () => ro.disconnect()
   }, [explodeMode])
 
-  return { explodeMode, setExplodeMode, focusedExplodeTaskId, explodeGridRef, explodeGridWidth }
+  return {
+    explodeMode,
+    setExplodeMode,
+    focusedExplodeTaskId,
+    explodeGridRef,
+    explodeGridWidth,
+    explodeGridHeight,
+    explodeVisibleTaskIds,
+    explodeMinimizedTaskIds,
+    minimizeExplodeTask,
+    restoreExplodeTask,
+    restoreAllExplodeTasks,
+    swapExplodeTasks
+  }
 }
