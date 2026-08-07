@@ -124,6 +124,26 @@ const ids = (n: number): string[] => Array.from({ length: n }, (_, i) => `t${i +
   eq(cells[2].top + cells[2].height, 600, 'stack reaches the bottom')
 }
 
+// ── rects are whole pixels and still tile exactly ───────────────────────────
+// Awkward sizes that do not divide evenly: xterm derives its row count from the
+// measured height, so a fractional one can oscillate between N and N+1 rows on
+// sub-pixel jitter — each flip a real fit(), SIGWINCH and atlas re-raster.
+{
+  const { cells } = computeExplodeLayout({ ...BASE, taskIds: ids(5), width: 1001, height: 601 })
+  for (const c of cells) {
+    assert(Number.isInteger(c.left), `left is a whole pixel (${c.left})`)
+    assert(Number.isInteger(c.top), `top is a whole pixel (${c.top})`)
+    assert(Number.isInteger(c.width), `width is a whole pixel (${c.width})`)
+    assert(Number.isInteger(c.height), `height is a whole pixel (${c.height})`)
+  }
+  // Rounding EDGES rather than sizes means neighbours still meet exactly.
+  const col0 = cells.filter((c) => c.col === 0)
+  const col1 = cells.filter((c) => c.col === 1)
+  eq(col0[0].left + col0[0].width + 4, col1[0].left, 'columns meet across the gutter, no drift')
+  eq(col0[col0.length - 1].top + col0[col0.length - 1].height, 601, 'column 0 ends on the edge')
+  eq(col1[col1.length - 1].top + col1[col1.length - 1].height, 601, 'column 1 ends on the edge')
+}
+
 // ── empty / degenerate ──────────────────────────────────────────────────────
 {
   const empty = computeExplodeLayout({ ...BASE, taskIds: [], width: 1000, height: 600 })

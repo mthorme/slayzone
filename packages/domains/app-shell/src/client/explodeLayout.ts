@@ -102,9 +102,29 @@ export function computeExplodeLayout(input: ExplodeLayoutInput): ExplodeLayout {
     // rects rather than negative ones.
     const cellHeight = Math.max(0, (height - totalGapY) / size)
 
+    // Snap to whole pixels by rounding EDGES, not sizes: adjacent cells then share
+    // an exact boundary instead of drifting apart by a rounding error each.
+    //
+    // Fractional heights are not cosmetic here. xterm derives its row count from
+    // the measured container, so a height landing on a row boundary (e.g. 298.4px
+    // at a 17px line height) can flip between N and N+1 rows as the observer
+    // reports sub-pixel jitter — each flip is a real fit(), a SIGWINCH to the pty
+    // and a WebGL atlas re-raster. Integer rects make the row count stable.
+    const leftPx = Math.round(left)
+    const rightPx = Math.round(left + colWidth)
+
     let top = 0
     for (const taskId of ids) {
-      cells.push({ taskId, left, top, width: colWidth, height: cellHeight, col })
+      const topPx = Math.round(top)
+      const bottomPx = Math.round(top + cellHeight)
+      cells.push({
+        taskId,
+        left: leftPx,
+        top: topPx,
+        width: rightPx - leftPx,
+        height: bottomPx - topPx,
+        col
+      })
       top += cellHeight + gap
     }
   }

@@ -156,8 +156,14 @@ export function useExplodeMode(
     setExplodeGridHeight(grid.clientHeight)
     const ro = new ResizeObserver((entries) => {
       const rect = entries[0]?.contentRect
-      setExplodeGridWidth(rect?.width ?? 0)
-      setExplodeGridHeight(rect?.height ?? 0)
+      // Round and bail on no-change. `contentRect` reports sub-pixel values, so a
+      // raw set re-rendered the whole app tree — and re-laid out every terminal —
+      // on jitter far below one pixel. Same-value setState is a bail-out in React,
+      // so this collapses that churn to real size changes only.
+      const w = Math.round(rect?.width ?? 0)
+      const h = Math.round(rect?.height ?? 0)
+      setExplodeGridWidth((prev) => (prev === w ? prev : w))
+      setExplodeGridHeight((prev) => (prev === h ? prev : h))
     })
     ro.observe(grid)
     return () => ro.disconnect()
