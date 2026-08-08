@@ -21,7 +21,30 @@ if (process.platform !== 'darwin') {
   process.exit(0)
 }
 
-const electronDir = path.join(__dirname, '..', 'node_modules', 'electron')
+// Resolve electron rather than assuming it is hoisted to the workspace root.
+// Under pnpm's default (non-hoisted) layout there is no root `node_modules/electron`
+// — it lives in the virtual store and is linked from the package that depends on it,
+// so the old path silently missed and this patch never ran ("Electron.app not found").
+const repoRoot = path.join(__dirname, '..')
+const electronDir = (() => {
+  const candidates = [
+    path.join(repoRoot, 'node_modules', 'electron'),
+    path.join(repoRoot, 'packages', 'apps', 'app', 'node_modules', 'electron')
+  ]
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'dist'))) return dir
+  }
+  try {
+    // Last resort: ask Node, from the app package that actually depends on it.
+    return path.dirname(
+      require.resolve('electron/package.json', {
+        paths: [path.join(repoRoot, 'packages', 'apps', 'app'), repoRoot]
+      })
+    )
+  } catch {
+    return candidates[0]
+  }
+})()
 const distDir = path.join(electronDir, 'dist')
 const oldAppPath = path.join(distDir, 'Electron.app')
 const newAppPath = path.join(distDir, `${APP_NAME}.app`)
