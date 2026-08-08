@@ -420,8 +420,8 @@ export function RunnersSettingsTab() {
             <AlertDialogTitle>Restart local runner</AlertDialogTitle>
             <AlertDialogDescription>
               Every agent and terminal running on this machine stops immediately — they are all
-              child processes of the runner. The runner reconnects on its own, but running agents do
-              not resume and unsaved terminal state is lost. Runners on other machines are
+              child processes of the runner. The runner reconnects on its own, but running agents
+              do not resume and unsaved terminal state is lost. Runners on other machines are
               unaffected.
             </AlertDialogDescription>
           </AlertDialogHeader>

@@ -730,9 +730,7 @@ function App(): React.JSX.Element {
     if (!task) return // data not loaded yet — wait for the next tasksMap update
     readConsumedRef.current = activeTaskId
     if (task.needs_attention) {
-      void trpcClient.task.update
-        .mutate({ id: activeTaskId, needsAttention: false })
-        .catch(() => {})
+      void trpcClient.task.update.mutate({ id: activeTaskId, needsAttention: false }).catch(() => {})
     }
   }, [activeTab, tasksMap, trpcClient])
   useEffect(() => {
@@ -860,13 +858,7 @@ function App(): React.JSX.Element {
         sessionIndex: (globalAgentPanelState.sessionIndex ?? 0) + 1
       })
     },
-    [
-      agentMode,
-      agentSessionId,
-      globalAgentPanelState.sessionIndex,
-      setGlobalAgentPanelState,
-      trpcClient
-    ]
+    [agentMode, agentSessionId, globalAgentPanelState.sessionIndex, setGlobalAgentPanelState, trpcClient]
   )
 
   // Floating agent panel: push context to main-process state machine.
@@ -1230,6 +1222,7 @@ function App(): React.JSX.Element {
       projectNameInputRef.current?.blur()
     }
   }
+
 
   const handleProjectDeleted = (): void => {
     if (deletingProject) {

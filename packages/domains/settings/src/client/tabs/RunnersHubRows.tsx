@@ -184,7 +184,9 @@ export function RunnersHubRows({
       {localRunnerMissing && (
         <tr className="border-border/60 border-b" data-testid="runner-local-missing">
           <td className="text-muted-foreground py-2 pr-3 font-medium">Local runner</td>
-          {showHubColumn && <td className="text-muted-foreground py-2 pr-3 text-xs">{hubLabel}</td>}
+          {showHubColumn && (
+            <td className="text-muted-foreground py-2 pr-3 text-xs">{hubLabel}</td>
+          )}
           <td className="text-muted-foreground py-2 pr-3 font-mono text-xs">—</td>
           <td className="text-muted-foreground py-2 pr-3 text-xs">—</td>
           <td className="py-2 pr-3">

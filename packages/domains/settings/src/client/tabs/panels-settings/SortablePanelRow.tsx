@@ -4,13 +4,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { Switch, Tooltip, TooltipContent, TooltipTrigger } from '@slayzone/ui'
 import type { PanelRowDescriptor } from './panels-settings.types'
 
-export function SortablePanelRow({
-  id,
-  descriptor
-}: {
-  id: string
-  descriptor: PanelRowDescriptor
-}) {
+export function SortablePanelRow({ id, descriptor }: { id: string; descriptor: PanelRowDescriptor }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id
   })
@@ -70,7 +64,10 @@ export function SortablePanelRow({
           {descriptor.sizeLabel}
         </span>
       )}
-      <div className="flex items-center gap-5 shrink-0 pr-2" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex items-center gap-5 shrink-0 pr-2"
+        onClick={(e) => e.stopPropagation()}
+      >
         {descriptor.homeToggle ? (
           <Switch
             checked={descriptor.homeToggle.enabled}

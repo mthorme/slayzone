@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { useSubscription, useTRPC } from '@slayzone/transport/client'
-import { KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+import {
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors
+} from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import type {
   PanelConfig,
@@ -139,7 +144,8 @@ export function usePanelSettings(activeTab: string, navigateTo: (tab: string) =>
     const ticu = all['terminal_idle_close_unit']
     const tpw = all['terminal_prewarm_enabled']
 
-    if (pc) setPanelConfig(mergePanelOrder(mergePredefinedWebPanels(JSON.parse(pc) as PanelConfig)))
+    if (pc)
+      setPanelConfig(mergePanelOrder(mergePredefinedWebPanels(JSON.parse(pc) as PanelConfig)))
     if (tff) setTerminalFontFamily(tff)
     if (ts) setTerminalScrollback(ts)
     if (tas === '1') setTerminalAutoStart(true)
@@ -213,11 +219,15 @@ export function usePanelSettings(activeTab: string, navigateTo: (tab: string) =>
   useSubscription(
     trpc.notify.onSettingsChanged.subscriptionOptions(undefined, {
       onData: () => {
-        void allSettingsQuery.refetch().then(({ data }) => {
-          const pc = data?.['panel_config']
-          if (pc)
-            setPanelConfig(mergePanelOrder(mergePredefinedWebPanels(JSON.parse(pc) as PanelConfig)))
-        })
+        void allSettingsQuery
+          .refetch()
+          .then(({ data }) => {
+            const pc = data?.['panel_config']
+            if (pc)
+              setPanelConfig(
+                mergePanelOrder(mergePredefinedWebPanels(JSON.parse(pc) as PanelConfig))
+              )
+          })
       }
     })
   )

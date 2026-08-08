@@ -1,6 +1,14 @@
 import { Plus } from 'lucide-react'
-import { DndContext, closestCenter, type DragEndEvent } from '@dnd-kit/core'
-import { SortableContext, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import {
+  DndContext,
+  closestCenter,
+  type DragEndEvent
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable'
 import {
   Button,
   IconButton,
@@ -68,7 +76,11 @@ export function PanelList({ state }: { state: PanelSettingsState }) {
           </div>
           <span className="w-3.5" />
         </div>
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext items={orderedIds} strategy={verticalListSortingStrategy}>
             <div className="space-y-2">
               {orderedIds.map((id) => {
@@ -117,7 +129,9 @@ export function PanelList({ state }: { state: PanelSettingsState }) {
             onChange={(e) => setNewPanelShortcut(e.target.value.slice(-1))}
           />
         </div>
-        {panelShortcutError && <p className="text-xs text-destructive">{panelShortcutError}</p>}
+        {panelShortcutError && (
+          <p className="text-xs text-destructive">{panelShortcutError}</p>
+        )}
         <label className="flex items-center gap-2 text-xs cursor-pointer">
           <input
             type="checkbox"
