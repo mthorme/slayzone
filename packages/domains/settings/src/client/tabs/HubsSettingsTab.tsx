@@ -369,7 +369,8 @@ export function HubsSettingsTab() {
       const isAddOnly =
         remotes.length > original.remotes.length &&
         original.remotes.every(
-          (h, i) => remotes[i]?.id === h.id && remotes[i]?.url === h.url && remotes[i]?.label === h.label
+          (h, i) =>
+            remotes[i]?.id === h.id && remotes[i]?.url === h.url && remotes[i]?.label === h.label
         ) &&
         defaultHubId === original.defaultHubId &&
         effectiveRunLocal === original.runLocalHub

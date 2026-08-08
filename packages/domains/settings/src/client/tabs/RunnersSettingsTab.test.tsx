@@ -27,8 +27,10 @@ let runnersByHub: Record<string, MockRunner[]> = {}
 
 /** The federation registry, or null to simulate rendering with no federation at
  *  all (the Chromium fork, which has no FederationProvider). */
-let federation: { hubs: Array<{ id: string; kind: string; label: string; url?: string }>; defaultHubId: string } | null =
-  null
+let federation: {
+  hubs: Array<{ id: string; kind: string; label: string; url?: string }>
+  defaultHubId: string
+} | null = null
 
 const mintSpy = vi.fn(() =>
   Promise.resolve({
@@ -230,7 +232,10 @@ beforeEach(() => {
   runnersByHub = {}
   // Single hub is the DEFAULT state for every pre-existing test: a lone local hub
   // must render exactly as it did before federation reached this tab.
-  federation = { hubs: [{ id: 'local', kind: 'local', label: 'Local', url: 'ws://127.0.0.1:51100/trpc' }], defaultHubId: 'local' }
+  federation = {
+    hubs: [{ id: 'local', kind: 'local', label: 'Local', url: 'ws://127.0.0.1:51100/trpc' }],
+    defaultHubId: 'local'
+  }
   renderingHubId = 'local'
   mintSpy.mockClear()
   revokeSpy.mockClear()
@@ -359,10 +364,7 @@ describe('RunnersSettingsTab', () => {
   it('two hubs: both hubs’ runners in ONE table, each labelled by hub', async () => {
     runnersByHub = {
       local: [makeRunner({ id: 'r-1', name: 'mac-studio' })],
-      'hub-b': [
-        makeRunner({ id: 'r-2', name: 'vps-1' }),
-        makeRunner({ id: 'r-3', name: 'vps-2' })
-      ]
+      'hub-b': [makeRunner({ id: 'r-2', name: 'vps-1' }), makeRunner({ id: 'r-3', name: 'vps-2' })]
     }
     federation = TWO_HUBS
     await act(async () => {

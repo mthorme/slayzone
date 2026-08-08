@@ -48,10 +48,14 @@ export function useExplodeMode(
   const explodeGridRef = useRef<HTMLDivElement | null>(null)
   const [explodeGridWidth, setExplodeGridWidth] = useState(0)
   const [explodeGridHeight, setExplodeGridHeight] = useState(0)
-  // User arrangement. `order` may lag the open tabs (a task opened or closed since
-  // the last drag), so every read goes through reconcile rather than trusting it.
-  const [order, setOrder] = useState<string[]>([])
-  const [minimized, setMinimized] = useState<ReadonlySet<string>>(() => new Set())
+  // User arrangement, persisted in the tab store's `viewState` slice so a renderer
+  // reload or restart keeps the layout the user built. May lag the open tabs (a
+  // task opened or closed since the last drag), so every read goes through
+  // reconcile rather than trusting it.
+  const order = useTabStore((s) => s.explodeOrder)
+  const minimizedList = useTabStore((s) => s.explodeMinimized)
+  const setExplodeArrangement = useTabStore((s) => s.setExplodeArrangement)
+  const minimized = useMemo<ReadonlySet<string>>(() => new Set(minimizedList), [minimizedList])
 
   // Auto-disable explode mode when fewer than 2 task tabs
   useEffect(() => {
@@ -62,11 +66,11 @@ export function useExplodeMode(
   // reopened task comes back visible instead of invisibly stuck in the tray.
   useEffect(() => {
     const open = new Set(openTaskIds)
-    setMinimized((prev) => {
-      const next = new Set([...prev].filter((id) => open.has(id)))
-      return next.size === prev.size ? prev : next
-    })
-  }, [openTaskIds])
+    const pruned = minimizedList.filter((id) => open.has(id))
+    if (pruned.length !== minimizedList.length) {
+      setExplodeArrangement({ minimized: pruned })
+    }
+  }, [openTaskIds, minimizedList, setExplodeArrangement])
 
   const orderedTaskIds = useMemo(
     () => reconcileExplodeOrder(order, openTaskIds),
@@ -83,33 +87,36 @@ export function useExplodeMode(
     [orderedTaskIds, minimized]
   )
 
-  const minimizeExplodeTask = useCallback((taskId: string) => {
-    setMinimized((prev) => {
-      if (prev.has(taskId)) return prev
-      return new Set(prev).add(taskId)
-    })
-  }, [])
+  const minimizeExplodeTask = useCallback(
+    (taskId: string) => {
+      if (minimizedList.includes(taskId)) return
+      setExplodeArrangement({ minimized: [...minimizedList, taskId] })
+    },
+    [minimizedList, setExplodeArrangement]
+  )
 
-  const restoreExplodeTask = useCallback((taskId: string) => {
-    setMinimized((prev) => {
-      if (!prev.has(taskId)) return prev
-      const next = new Set(prev)
-      next.delete(taskId)
-      return next
-    })
-  }, [])
+  const restoreExplodeTask = useCallback(
+    (taskId: string) => {
+      if (!minimizedList.includes(taskId)) return
+      setExplodeArrangement({ minimized: minimizedList.filter((id) => id !== taskId) })
+    },
+    [minimizedList, setExplodeArrangement]
+  )
 
   const restoreAllExplodeTasks = useCallback(() => {
-    setMinimized((prev) => (prev.size === 0 ? prev : new Set()))
-  }, [])
+    if (minimizedList.length === 0) return
+    setExplodeArrangement({ minimized: [] })
+  }, [minimizedList.length, setExplodeArrangement])
 
   // Persist the RECONCILED order, not the stale stored one: a swap against an
   // order that predates a newly-opened task would otherwise drop that task.
   const swapExplodeTasks = useCallback(
     (a: string, b: string) => {
-      setOrder(swapExplodeOrder(reconcileExplodeOrder(order, openTaskIds), a, b))
+      setExplodeArrangement({
+        order: swapExplodeOrder(reconcileExplodeOrder(order, openTaskIds), a, b)
+      })
     },
-    [order, openTaskIds]
+    [order, openTaskIds, setExplodeArrangement]
   )
 
   // Seed / clear focused explode cell on mode toggle; keep valid as tabs change.
